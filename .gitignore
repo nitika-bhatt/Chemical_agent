@@ -1,0 +1,72 @@
+# =============================================
+# ProteinMind_Agent — .gitignore
+# =============================================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+
+# ----- Virtual Environments -----
+.venv/
+venv/
+env/
+ENV/
+
+# ----- Model Weights & Checkpoints -----
+# Large binary files — store on HuggingFace Hub, Google Drive, or Zenodo
+checkpoints/*.pt
+checkpoints/*.pth
+checkpoints/*.pkl
+checkpoints/*.bin
+# Allow small result CSVs in checkpoints
+!checkpoints/*.csv
+
+# ----- Cached Embeddings -----
+# ESM embeddings are large (~221 MB) — regenerate with train.py
+esm_cache/
+
+# ----- Raw Data -----
+# Large raw datasets — link to Zenodo/Figshare in README
+data-11/
+
+# ----- Generated Outputs -----
+# Reproducible from run_proteinmind.py — do not commit
+proteinmind_outputs/
+
+# ----- PDB Structure Files -----
+# Downloaded at runtime
+pdb_files/*.pdb
+# Keep placeholder/sample if it exists
+!pdb_files/sample.pdb
+
+# ----- Jupyter Notebook Artifacts -----
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ----- IDE & OS Files -----
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----- Logs & Temp Files -----
+*.log
+*.tmp
+*.bak
+*.swp
+
+# ----- Environment Variables (keep secrets safe!) -----
+.env
+.env.*
+secrets.yaml
+config_local.py
