@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import base64
+import re
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -18,27 +19,36 @@ except ImportError as e:
     st.stop()
 
 # --- Page Configuration ---
-st.set_page_config(page_title="ProteinMind Agentic Framework", page_icon="🧬", layout="wide")
+st.set_page_config(
+    page_title="ArgMe-XAI Agent: Arginine Methylation Explainable AI Agent",
+    page_icon="🧬",
+    layout="wide",
+)
 
-st.title("🧬 ProteinMind: Agentic PTM Analytical Platform")
+st.title("🧬 ArgMe-XAI Agent")
 st.markdown("""
-Welcome to the Web Interface of the ProteinMind Framework. 
-Enter a protein sequence below, and the multi-agent system will analyze it for Arginine Methylation sites using a dataset-centric evidence approach.
+Arginine Methylation Explainable AI Agent
+
+Enter a protein sequence or UniProt accession below to identify possible arginine methylation sites using PLMArgMe and supporting evidence agents.
 """)
 
 # --- Sidebar Configuration ---
 st.sidebar.header("Configuration")
 checkpoint_path_input = st.sidebar.text_input(
     "Checkpoint Path", 
-    value="/content/drive/MyDrive/ProteinMind_Agent/checkpoints/pretrained_esm_v4.pt"
+    value=os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", "pretrained_esm_v4.pt")
 )
 
 # --- Main Interface ---
 st.subheader("Protein Input")
 sequence_input = st.text_area(
-    "Enter raw Amino Acid Sequence:", 
+    "Enter a protein sequence or UniProt accession:",
     height=150, 
-    placeholder="Example: MKRGGKPLRTARGGRVVTS..."
+    placeholder="Examples: P04637 or FTLQIRGRERF"
+)
+st.caption(
+    "Use a UniProt accession for a real AlphaFold structure, or an 11-residue "
+    "motif for sequence-level analysis."
 )
 
 if st.button("🚀 Analyze Protein", use_container_width=True):
@@ -86,7 +96,11 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
             
         # --- Generate Visuals & Report ---
         with st.spinner("Generating 3D Structures and PDF Report..."):
-            output_dir = tempfile.mkdtemp()
+            output_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "proteinmind_outputs")
+            output_name = analysis_res.get("uniprot_id") or analysis_res.get("query_id", "unknown")
+            output_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", output_name)
+            output_dir = os.path.join(output_root, output_name)
+            os.makedirs(output_dir, exist_ok=True)
             generator = VisualsGenerator(output_dir)
             visual_files = generator.execute_all(analysis_res)
             
@@ -110,12 +124,12 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
         with colA:
             hm_img = visual_files.get("agent_score_heatmap")
             if hm_img and os.path.exists(hm_img):
-                st.image(hm_img, caption="Multi-Agent Score Heatmap", use_column_width=True)
+                st.image(hm_img, caption="Multi-Agent Score Heatmap", width="stretch")
         
         with colB:
             seq_plot = visual_files.get("sequence_annotation")
             if seq_plot and os.path.exists(seq_plot):
-                st.image(seq_plot, caption="Sequence Linear Annotation", use_column_width=True)
+                st.image(seq_plot, caption="Sequence Linear Annotation", width="stretch")
                 
         # Radar charts
         radar_charts = visual_files.get("radar_charts", [])
@@ -124,7 +138,7 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
             cols = st.columns(min(3, len(radar_charts)))
             for i, r_path in enumerate(radar_charts[:3]):
                 with cols[i]:
-                    st.image(r_path, use_column_width=True)
+                    st.image(r_path, width="stretch")
         
         # --- PDF Download Button ---
         st.header("📑 Download Final Clinical Report")
@@ -134,7 +148,7 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
         st.download_button(
             label="📄 Download PDF Report",
             data=PDFbyte,
-            file_name="ProteinMind_Report.pdf",
+            file_name="ArgMe-XAI_Agent_Report.pdf",
             mime="application/octet-stream",
             help="Download the complete MTech Thesis Clinical Report"
         )

@@ -201,7 +201,7 @@ class VisualsGenerator:
         import requests
         if not accession or accession in ("Unknown", "N/A", ""):
             return ""
-        url = f"https://alphafold.ebi.ac.uk/files/AF-{accession}-F1-model_v4.pdb"
+        url = f"https://alphafold.ebi.ac.uk/files/AF-{accession}-F1-model_v6.pdb"
         try:
             resp = requests.get(url, timeout=30)
             if resp.status_code == 200:
@@ -243,12 +243,21 @@ class VisualsGenerator:
                 x = round(2.3 * math.cos(t), 3)
                 y = round(2.3 * math.sin(t), 3)
                 z = round(1.5 * t, 3)
-                pdb_lines.append(
-                    f"ATOM  {i+1:5d}  CA  ALA A{i+1:4d}    "
-                    f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00 50.00           C"
-                )
+                residue = (sequence[i] if sequence and i < len(sequence) else "A")
+                residue_atoms = [
+                    ("N",  x - 0.65, y - 0.35, z - 0.15, "N"),
+                    ("CA", x,        y,        z,        "C"),
+                    ("C",  x + 0.65, y + 0.35, z + 0.15, "C"),
+                    ("O",  x + 0.95, y + 0.55, z + 0.25, "O"),
+                ]
+                for atom_offset, (atom_name, atom_x, atom_y, atom_z, element) in enumerate(residue_atoms):
+                    atom_id = i * 4 + atom_offset + 1
+                    pdb_lines.append(
+                        f"ATOM  {atom_id:5d} {atom_name:>4s} {residue:>3s} A{i+1:4d}    "
+                        f"{atom_x:8.3f}{atom_y:8.3f}{atom_z:8.3f}  1.00 50.00           {element:>2s}"
+                    )
             pdb_data     = "\n".join(pdb_lines)
-            source_label = "Synthetic Helix (no PDB available)"
+            source_label = "Synthetic peptide view (no full protein structure available)"
 
         safe_pdb = pdb_data.replace("\\", "\\\\").replace("`", "\\`")
         title    = accession if accession not in ("", "Unknown", "N/A") else "Predicted Structure"
@@ -258,7 +267,10 @@ class VisualsGenerator:
             var el = document.getElementById('viewer');
             glviewer = $3Dmol.createViewer(el, {{backgroundColor: '#020617'}});
             glviewer.addModel(pdbData, "pdb");
-            glviewer.setStyle({{}}, {{cartoon: {{color: '#64748b'}}}});
+            glviewer.setStyle({{}}, {{
+                cartoon: {{color: '#64748b'}},
+                line: {{color: '#64748b', linewidth: 2.0}}
+            }});
             highlightPTMs();
             glviewer.zoomTo();
             glviewer.render();
@@ -290,9 +302,9 @@ class VisualsGenerator:
   <h1>🧬 ProteinMind Structure Viewer: {title}</h1>
   <div id="viewer"></div>
   <div class="controls">
-    <button onclick="glviewer.setStyle({{}},{{cartoon:{{color:'spectrum'}}}});glviewer.render();">🌈 Spectrum</button>
-    <button onclick="glviewer.setStyle({{}},{{cartoon:{{color:'#64748b'}}}});highlightPTMs();glviewer.render();">🔴 PTM Sites</button>
-    <button onclick="glviewer.setStyle({{}},{{surface:{{opacity:0.7,color:'white'}}}});glviewer.render();">🔵 Surface</button>
+    <button onclick="applySpectrum();">🌈 Spectrum</button>
+    <button onclick="glviewer.setStyle({{}},{{cartoon:{{color:'#64748b'}},line:{{color:'#64748b'}}}});highlightPTMs();glviewer.render();">🔴 PTM Sites</button>
+    <button onclick="glviewer.setStyle({{}},{{surface:{{opacity:0.7,color:'white'}}}});highlightPTMs();glviewer.render();">🔵 Surface</button>
     <button onclick="glviewer.setStyle({{}},{{stick:{{}}}});highlightPTMs();glviewer.render();">🔗 Stick</button>
     <button onclick="glviewer.zoomTo();">⬜ Reset</button>
   </div>
@@ -303,10 +315,26 @@ class VisualsGenerator:
   <script>
     var glviewer = null;
     var ptmPositions = {pos_array_str};
-    function highlightPTMs() {{
+        function applySpectrum() {{
+            if (!glviewer) {{
+                window.alert('The 3D viewer is still loading. Please try again.');
+                return;
+            }}
+            glviewer.setStyle({{}}, {{
+                cartoon: {{colorscheme: 'spectrum'}},
+                line: {{colorscheme: 'spectrum'}}
+            }});
+            highlightPTMs();
+            glviewer.render();
+        }}
+        function highlightPTMs() {{
       if (!glviewer) return;
       ptmPositions.forEach(function(p) {{
-        glviewer.addStyle({{resi: p}}, {{sphere: {{color: '#e11d48', radius: 1.5}}}});
+                glviewer.addStyle({{resi: p}}, {{sphere: {{color: '#ef4444', radius: 2.4}}}});
+                glviewer.addLabel('Predicted methylation', {{resi: p}}, {{
+                    fontColor: '#fecaca', backgroundColor: '#450a0a',
+                    backgroundOpacity: 0.85, fontSize: 12, inFront: true
+                }});
       }});
     }}
     {viewer_script}

@@ -1,7 +1,7 @@
 """
-Clinical Report Generator — ProteinMind v4
+Clinical Report Generator — ArgMe-XAI Agent
 ==========================================
-Builds a complete multi-page PDF report for the HybridARGME methylation
+Builds a complete multi-page PDF report for the ArgMe-XAI Agent methylation
 prediction analysis.
 
 FIXED in v4:
@@ -65,7 +65,7 @@ class NumberedCanvas(canvas.Canvas):
 
         self.setFont("Helvetica", 8)
         self.setFillColor(colors.HexColor("#64748b"))
-        self.drawRightString(558, 742, "HybridARGME Multi-Agent Framework  |  M.Tech Thesis")
+        self.drawRightString(558, 742, "ArgMe-XAI Agent  |  M.Tech Thesis")
 
         # ── Footer ────────────────────────────────────────────────────────────
         self.setStrokeColor(colors.HexColor("#e2e8f0"))
@@ -258,7 +258,7 @@ class ClinicalReportGenerator:
 
         organism     = meta.get("organism", "N/A")
         function_txt = meta.get("function",
-                                "Dataset-centric methylation prediction via HybridARGME.")
+                                "Arginine methylation prediction via the ArgMe-XAI Agent.")
         uniprot_id   = data.get("uniprot_id", "N/A") or "N/A"
         ptm_type     = data.get("ptm_type", "methyl").capitalize()
         query_id     = data.get("query_id", "unknown")
@@ -274,8 +274,8 @@ class ClinicalReportGenerator:
         # ─────────────────────────────────────────────────────────────────────
         story.append(Paragraph("ProteinMind Clinical Report", self.s_cover_title))
         story.append(Paragraph(
-            "Integrated Protein Methylation Prediction &amp; Explainability Analysis  ·  "
-            "HybridARGME Multi-Agent Framework",
+            "Arginine Methylation Explainable AI Agent  ·  "
+            "ArgMe-XAI Agent",
             self.s_cover_sub))
         story.append(Spacer(1, 10))
 
@@ -429,7 +429,7 @@ class ClinicalReportGenerator:
                 Paragraph("<b>Pos</b>",       self.s_label),
                 Paragraph("<b>Res</b>",        self.s_label),
                 Paragraph("<b>P_final</b>",   self.s_label),
-                Paragraph("<b>P_hybrid</b>",  self.s_label),
+                Paragraph("<b>ArgMe-XAI Score</b>",  self.s_label),
                 Paragraph("<b>P_motif</b>",   self.s_label),
                 Paragraph("<b>P_evidence</b>",self.s_label),
                 Paragraph("<b>P_conserv</b>", self.s_label),
@@ -494,7 +494,7 @@ class ClinicalReportGenerator:
         self._section_divider(story, "7.  Full Sequence Methylation Site Map")
         story.append(Paragraph(
             "Linear sequence map showing all candidate R/K sites. Gold bars mark "
-            "sites predicted positive by the HybridARGME consensus. "
+            "sites predicted positive by the ArgMe-XAI Agent consensus. "
             "Bar heights represent the final fusion score (P_final).",
             self.s_body))
 
@@ -509,10 +509,10 @@ class ClinicalReportGenerator:
         # ─────────────────────────────────────────────────────────────────────
         story.append(PageBreak())
         self._section_divider(story,
-            "8.  Deep Model Explainability — BMAM Attention &amp; SHAP Attribution")
+            "8.  ArgMe-XAI Explainability — Attention &amp; SHAP Attribution")
         story.append(Paragraph(
             "For each top-predicted site, two interpretability views are shown: "
-            "(i) the BMAM self-attention map capturing residue-level dependencies "
+            "(i) the self-attention map capturing residue-level dependencies "
             "within the 11-mer window, and (ii) the occlusion-based SHAP attribution "
             "showing which flanking residues contribute most to the prediction. "
             "The center position (offset 0) is the target R/K residue.",
@@ -555,7 +555,7 @@ class ClinicalReportGenerator:
                     ]))
                     story.append(pair_tbl)
                     story.append(Paragraph(
-                        f"Left: BMAM self-attention map for {res}{pos}.  "
+                        f"Left: self-attention map for {res}{pos}.  "
                         f"Right: Residue attribution (occlusion SHAP) for {res}{pos}.",
                         self.s_caption))
                 story.append(Spacer(1, 12))
@@ -570,7 +570,7 @@ class ClinicalReportGenerator:
             story.append(Paragraph(
                 "Each card below shows the five-agent evidence breakdown for one "
                 "predicted methylation site. Bars show the score contribution from "
-                "HybridARGME, Motif, Structural, Conservation, and Dataset Evidence "
+                "ArgMe-XAI, Motif, Structural, Conservation, and Dataset Evidence "
                 "agents. The dashed line marks the 0.50 neutral baseline.",
                 self.s_body))
 
@@ -668,10 +668,10 @@ class ClinicalReportGenerator:
         # ── Methodology note ──────────────────────────────────────────────────
         self._section_divider(story, "14.  Methodology Notes")
         story.append(Paragraph(
-            "<b>HybridARGME Framework</b> — A multi-agent ensemble combining "
-            "ESM-2 language model embeddings with a DeepTESite Bidirectional "
-            "Multi-head Attention Model (BMAM). Five parallel agents provide "
-            "complementary evidence: (1) HybridARGME transformer score, "
+            "<b>ArgMe-XAI Agent</b> — An explainable AI ensemble combining "
+            "ESM-2 language model embeddings with attention-based sequence "
+            "representations. Five parallel agents provide complementary "
+            "evidence: (1) ArgMe-XAI sequence score, "
             "(2) motif sequence matching, (3) cross-species conservation, "
             "(4) dataset evidence (Hamming-similarity lookup), and "
             "(5) structural accessibility. Final predictions are fused by "
@@ -690,7 +690,7 @@ class ClinicalReportGenerator:
         story.append(Spacer(1, 8))
         story.append(Paragraph(
             f"<i>Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  ·  "
-            f"ProteinMind v4  ·  M.Tech Thesis — Agentic PTM Prediction</i>",
+            f"ArgMe-XAI Agent  ·  M.Tech Thesis — Arginine Methylation Analysis</i>",
             self.s_body_small))
 
         # ─────────────────────────────────────────────────────────────────────

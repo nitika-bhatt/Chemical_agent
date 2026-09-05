@@ -16,6 +16,7 @@ Pipeline (v4 — Dataset-Centric Agentic, Local-First):
 Accepted query formats:
   - "Analyze motif: FTLQIRGRERF"          → direct 11-mer
   - "Analyze sequence: MKRGGKPLRTA..."    → full protein sequence
+    - "Analyze P04637 for methylation"       → UniProt accession lookup
   - "Analyze sample #125 from dataset"    → row lookup by index
 
 All 4 scoring agents (steps 3-6) run on EVERY candidate site in parallel
@@ -145,7 +146,19 @@ class Orchestrator:
                 "query_id":     f"sample_{idx}",
             }
 
-        # ── Format 4: bare amino acid string ──────────────────────────────────
+        # ── Format 4: UniProt accession ────────────────────────────────────────
+        accession_match = re.search(
+            r"\b([A-NP-Z][0-9][A-Z0-9]{3}[0-9])\b", query, re.IGNORECASE
+        )
+        if accession_match:
+            accession = accession_match.group(1).upper()
+            return {
+                "mode":       "accession",
+                "accession":  accession,
+                "query_id":   accession,
+            }
+
+        # ── Format 5: bare amino acid string ──────────────────────────────────
         bare = re.sub(r"\s+", "", query).upper()
         if len(bare) >= 5 and all(c in _AA_SET for c in bare):
             qid = "seq_" + hashlib.md5(bare.encode()).hexdigest()[:8]
@@ -176,6 +189,25 @@ class Orchestrator:
 
         if mode in ("motif", "sequence"):
             return parsed["sequence"]
+
+        if mode == "accession":
+            import requests
+
+            accession = parsed["accession"]
+            url = f"https://rest.uniprot.org/uniprotkb/{accession}.fasta"
+            try:
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                fasta_lines = response.text.splitlines()
+                sequence = "".join(
+                    line.strip() for line in fasta_lines
+                    if line.strip() and not line.startswith(">")
+                ).upper()
+                if sequence and all(residue in _AA_SET for residue in sequence):
+                    return sequence
+            except requests.RequestException as exc:
+                print(f"[Orchestrator] UniProt lookup failed for {accession}: {exc}")
+            return ""
 
         if mode == "sample":
             idx = parsed.get("sample_index", 0)
@@ -293,6 +325,7 @@ class Orchestrator:
                    • "Analyze motif: FTLQIRGRERF"
                    • "Analyze sequence: MKRGGKPLRTA..."
                    • "Analyze sample #125 from dataset"
+                   • "Analyze P04637 for methylation"
                    • Bare amino acid sequence
             accession: Optional UniProt accession (for structural agent only)
 
@@ -311,6 +344,8 @@ class Orchestrator:
 
         query_id = parsed["query_id"]
         mode     = parsed["mode"]
+        if mode == "accession":
+            accession = parsed["accession"]
         print(f"[Orchestrator] STEP 1 ✓  Mode: {mode}  | Query ID: {query_id}")
 
         # ── STEP 2: Resolve sequence ───────────────────────────────────────────
@@ -381,7 +416,7 @@ class Orchestrator:
             "predictions_summary": {
                 "total_sites_checked":  pred_result.get("total_sites_checked"),
                 "positive_sites_count": len(positive_sites),
-                "threshold_used":       self.hybridargme_agent.avg_threshold,
+                "threshold_used":       self.consensus_agent.threshold,
                 "fusion_mode":          fusion_mode,
                 "consensus_weights":    self.consensus_agent.weights,
             },

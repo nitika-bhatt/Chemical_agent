@@ -16,6 +16,7 @@ Usage (Colab with Drive):
 
 import os
 import sys
+import re
 import argparse
 import json
 from datetime import datetime
@@ -35,6 +36,14 @@ def resolve_output_path(drive: str, output_dir: str) -> str:
         path = output_dir
     else:
         path = os.path.join(drive, output_dir)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def resolve_protein_output_path(base_dir: str, query_id: str) -> str:
+    """Create a stable, readable output folder for one protein analysis."""
+    folder_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", query_id or "unknown")
+    path = os.path.join(base_dir, folder_name)
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -173,13 +182,16 @@ def main():
 
     # Attach metadata to payload
     analysis_res["metadata"] = metadata_dict
-    analysis_res["uniprot_id"] = uniprot_id if uniprot_id else "N/A"
+    # Preserve the accession resolved by the orchestrator for direct accession queries.
+    if uniprot_id:
+        analysis_res["uniprot_id"] = uniprot_id
 
     # ── 3. Print Summary ──────────────────────────────────────────────────────
     query_id   = analysis_res.get("query_id",   "unknown")
     query_mode = analysis_res.get("query_mode", "unknown")
     ptm_type   = analysis_res.get("ptm_type",   "methyl")
     summary    = analysis_res.get("predictions_summary", {})
+    args.output_dir = resolve_protein_output_path(args.output_dir, query_id)
 
     print("\n" + "-" * 60)
     print("  ANALYSIS RESULTS SUMMARY")

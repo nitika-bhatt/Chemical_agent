@@ -58,7 +58,14 @@ class HybridARGMEAgent:
         """Load all fold models from the saved ensemble checkpoint."""
         print(f"[HybridARGME Agent] Loading ensemble from {checkpoint_path}...")
         try:
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            try:
+                checkpoint = torch.load(
+                    checkpoint_path,
+                    map_location=self.device,
+                    weights_only=False,
+                )
+            except TypeError:
+                checkpoint = torch.load(checkpoint_path, map_location=self.device)
             fold_states = checkpoint.get("fold_states", [])
             self.avg_threshold = checkpoint.get("avg_threshold", 0.5)
 

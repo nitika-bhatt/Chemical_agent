@@ -41,6 +41,7 @@ data-11/
 # ----- Generated Outputs -----
 # Reproducible from run_proteinmind.py — do not commit
 proteinmind_outputs/
+outputss/
 
 # ----- PDB Structure Files -----
 # Downloaded at runtime
