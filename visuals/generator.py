@@ -210,6 +210,33 @@ class VisualsGenerator:
             print(f"[Visuals] AlphaFold request failed: {e}")
         return ""
 
+    def _fetch_pdb_from_esmfold(self, sequence: str) -> str:
+        """
+        Real ESMFold structure prediction via the public ESM Metagenomic
+        Atlas API. Works for arbitrary short sequences (including isolated
+        motifs), unlike AlphaFold EBI which only serves precomputed
+        full-length UniProt entries.
+
+        NOTE: folding an isolated 11-residue fragment produces a real
+        ESMFold structure, but it reflects the peptide folded in vacuum,
+        not the residue's true accessibility context within its native
+        full-length protein. Keep that caveat visible in the UI/report —
+        see source_label below.
+        """
+        import requests
+        seq = (sequence or "").strip().upper()
+        if not (2 <= len(seq) <= 400) or not all(c in "ACDEFGHIKLMNPQRSTVWY" for c in seq):
+            return ""
+        url = "https://api.esmatlas.com/foldSequence/v1/pdb/"
+        try:
+            resp = requests.post(url, data=seq, timeout=60)
+            if resp.status_code == 200 and resp.text.strip().startswith("ATOM"):
+                return resp.text
+            print(f"[Visuals] ESMFold returned status {resp.status_code}.")
+        except Exception as e:
+            print(f"[Visuals] ESMFold request failed: {e}")
+        return ""
+
     def generate_3d_molecular_html(self, accession: str, positive_positions: list,
                                    sequence: str = "", local_pdb_path: str = "") -> str:
         """Interactive 3D HTML viewer using 3Dmol.js (browser-only)."""
@@ -228,13 +255,26 @@ class VisualsGenerator:
             except Exception:
                 pass
 
-        # 2. Try AlphaFold
+        # 2. Try AlphaFold (full-length UniProt entries only)
         if not pdb_data and accession and accession not in ("", "Unknown", "N/A"):
             pdb_data = self._fetch_pdb_from_alphafold(accession)
             if pdb_data:
                 source_label = f"AlphaFold EBI ({accession})"
 
-        # 3. Synthetic helix fallback
+        # 3. Try real ESMFold prediction (works for short/motif sequences
+        #    that have no UniProt accession and thus no AlphaFold entry)
+        if not pdb_data and sequence:
+            pdb_data = self._fetch_pdb_from_esmfold(sequence)
+            if pdb_data:
+                is_fragment = len(sequence) <= 15
+                source_label = (
+                    f"ESMFold prediction (isolated {len(sequence)}-residue fragment — "
+                    f"not native accessibility context)"
+                    if is_fragment else
+                    f"ESMFold prediction ({len(sequence)} residues)"
+                )
+
+        # 4. Synthetic helix fallback (only if ESMFold also unavailable, e.g. offline)
         if not pdb_data:
             pdb_lines = []
             n = min(max(len(sequence) if sequence else 40, 20), 80)

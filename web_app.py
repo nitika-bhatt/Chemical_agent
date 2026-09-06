@@ -4,7 +4,6 @@ import tempfile
 import base64
 import re
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 
 # Add the parent directory to Python path if needed
@@ -17,6 +16,8 @@ try:
 except ImportError as e:
     st.error(f"Import Error: {e}. Make sure you are running this from the ProteinMind_Agent directory.")
     st.stop()
+
+from query_utils import build_query
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -51,7 +52,7 @@ st.caption(
     "motif for sequence-level analysis."
 )
 
-if st.button("🚀 Analyze Protein", use_container_width=True):
+if st.button("🚀 Analyze Protein", width="stretch"):
     if not sequence_input.strip():
         st.warning("Please enter a protein sequence first!")
     else:
@@ -63,7 +64,7 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
                 st.stop()
                 
         with st.spinner("Agents are analyzing the sequence..."):
-            query = f"Analyze sequence: {sequence_input.strip()}"
+            query = build_query(sequence_input)
             analysis_res = orch.execute_analysis(query)
             
             if not analysis_res.get("success", False):
@@ -90,7 +91,7 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
             # Reformat df for display
             display_df = df[["position", "residue", "motif"]].copy()
             display_df["P_Final Score"] = [p.get("probability", p.get("P_final", 0)) for p in positives]
-            st.dataframe(display_df.style.highlight_max(axis=0, subset=["P_Final Score"]), use_container_width=True)
+            st.dataframe(display_df.style.highlight_max(axis=0, subset=["P_Final Score"]), width="stretch")
         else:
             st.info("No methylation sites were identified above the confidence threshold.")
             
@@ -112,10 +113,14 @@ if st.button("🚀 Analyze Protein", use_container_width=True):
         html_file = visual_files.get("3d_viewer")
         if html_file and os.path.exists(html_file):
             st.header("🧬 3D Interactive Protein Structure")
-            st.caption("Using ESMFold API. Predicted sites are highlighted in red spheres.")
+            st.caption(
+                "Predicted methylation sites are highlighted in red spheres. "
+                "Structure source (AlphaFold, ESMFold, or a schematic fallback) "
+                "is shown at the bottom of the viewer below."
+            )
             with open(html_file, 'r', encoding='utf-8') as f:
                 html_code = f.read()
-            components.html(html_code, height=650, scrolling=True)
+            st.html(html_code, unsafe_allow_javascript=True)
             
         # --- Display Images ---
         st.header("📈 Agentic Explanations & Plots")

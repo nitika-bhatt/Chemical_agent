@@ -110,6 +110,36 @@ class HybridARGMEAgent:
         emb = results["representations"][6]
         return emb[0, 1:len(sequence) + 1, :].cpu()
 
+    def get_esm_embeddings_batched(self, sequences: list, batch_size: int = 32) -> list:
+        """
+        Batched version of get_esm_embedding for a list of equal- or
+        variable-length windows. Runs len(sequences)/batch_size forward
+        passes instead of one per sequence — same numerical result as
+        calling get_esm_embedding() individually (batching does not change
+        per-sequence outputs beyond ordinary floating-point batch-size
+        sensitivity, which is negligible here), just far fewer round trips.
+
+        Returns a list of tensors, one per input sequence, in the same
+        order as `sequences`.
+        """
+        self._init_esm_model()
+        all_embeddings = [None] * len(sequences)
+
+        for start in range(0, len(sequences), batch_size):
+            chunk = sequences[start:start + batch_size]
+            data = [(f"seq_{i}", seq) for i, seq in enumerate(chunk)]
+            _, _, batch_tokens = self.batch_converter(data)
+            batch_tokens = batch_tokens.to(self.device)
+
+            with torch.no_grad():
+                results = self.esm_model(batch_tokens, repr_layers=[6])
+            reps = results["representations"][6]  # [batch, padded_len, 320]
+
+            for i, seq in enumerate(chunk):
+                all_embeddings[start + i] = reps[i, 1:len(seq) + 1, :].cpu()
+
+        return all_embeddings
+
     # ── Prediction ────────────────────────────────────────────────────────────
 
     def predict_sites(self, sequence: str) -> list:
@@ -129,14 +159,28 @@ class HybridARGMEAgent:
 
         print(f"[HybridARGME Agent] Scoring {len(target_positions)} candidate sites...")
 
-        results = []
-        for pos in target_positions:
-            motif_seq = padded[pos: pos + 11]
+        motif_seqs = [padded[pos: pos + 11] for pos in target_positions]
 
-            try:
-                emb = self.get_esm_embedding(motif_seq)   # [11, 320]
-            except Exception as e:
-                print(f"[HybridARGME Agent] ESM error at pos {pos}: {e}")
+        # Batched ESM-2 embedding: one (or a few, if >batch_size) forward
+        # pass(es) instead of one pass per candidate site. Falls back to
+        # per-window zero embeddings only for windows that individually
+        # fail, so a single bad window doesn't drop the whole batch.
+        try:
+            embeddings = self.get_esm_embeddings_batched(motif_seqs)
+        except Exception as e:
+            print(f"[HybridARGME Agent] Batched ESM embedding failed, "
+                  f"falling back to per-window calls: {e}")
+            embeddings = []
+            for motif_seq in motif_seqs:
+                try:
+                    embeddings.append(self.get_esm_embedding(motif_seq))
+                except Exception as e2:
+                    print(f"[HybridARGME Agent] ESM error on window '{motif_seq}': {e2}")
+                    embeddings.append(torch.zeros(11, INPUT_DIM))
+
+        results = []
+        for pos, motif_seq, emb in zip(target_positions, motif_seqs, embeddings):
+            if emb is None:
                 emb = torch.zeros(11, INPUT_DIM)
 
             x = emb.unsqueeze(0).to(self.device)   # [1, 11, 320]

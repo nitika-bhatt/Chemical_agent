@@ -38,6 +38,8 @@ from agents.conservation_agent      import ConservationAgent
 from agents.dataset_evidence_agent  import DatasetEvidenceAgent
 from agents.consensus_agent         import ConsensusAgent
 from agents.explainer_agent         import ExplainerAgent
+from agents.retrieval_agent         import RetrievalAgent
+from safe_consensus_wrapper         import SafeConsensusWrapper
 
 
 # Standard amino acid alphabet for sequence validation
@@ -81,10 +83,17 @@ class Orchestrator:
         self.structural_agent       = StructuralAgent()
         self.conservation_agent     = ConservationAgent(data_dir=resolved_data_dir)
         self.dataset_evidence_agent = DatasetEvidenceAgent(data_dir=resolved_data_dir)
-        self.consensus_agent        = ConsensusAgent(consensus_model_path)
+        self.consensus_agent        = SafeConsensusWrapper(
+            ConsensusAgent(consensus_model_path)
+        )
         self.explainer_agent        = ExplainerAgent(self.hybridargme_agent)
+        # Only used for accession-mode metadata (protein name/gene/organism/
+        # literature) — never used for sequence resolution or scoring, so
+        # the dataset-centric pipeline stays local-first as designed.
+        self.retrieval_agent        = RetrievalAgent()
+        self._last_uniprot_info     = {}
 
-        print("[Orchestrator] All 7 agents initialized successfully.\n")
+        print("[Orchestrator] All 8 agents initialized successfully.\n")
 
     # ── Query Parsing ─────────────────────────────────────────────────────────
 
@@ -147,8 +156,12 @@ class Orchestrator:
             }
 
         # ── Format 4: UniProt accession ────────────────────────────────────────
+        # Official UniProt accession pattern — covers BOTH the 6-character
+        # legacy format (e.g. P04637) and the newer 10-character format
+        # (e.g. A0A024RBG1). The old pattern here only matched 6-char IDs.
         accession_match = re.search(
-            r"\b([A-NP-Z][0-9][A-Z0-9]{3}[0-9])\b", query, re.IGNORECASE
+            r"\b([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})\b",
+            query, re.IGNORECASE,
         )
         if accession_match:
             accession = accession_match.group(1).upper()
@@ -191,22 +204,13 @@ class Orchestrator:
             return parsed["sequence"]
 
         if mode == "accession":
-            import requests
-
             accession = parsed["accession"]
-            url = f"https://rest.uniprot.org/uniprotkb/{accession}.fasta"
-            try:
-                response = requests.get(url, timeout=30)
-                response.raise_for_status()
-                fasta_lines = response.text.splitlines()
-                sequence = "".join(
-                    line.strip() for line in fasta_lines
-                    if line.strip() and not line.startswith(">")
-                ).upper()
-                if sequence and all(residue in _AA_SET for residue in sequence):
-                    return sequence
-            except requests.RequestException as exc:
-                print(f"[Orchestrator] UniProt lookup failed for {accession}: {exc}")
+            uniprot_info = self.retrieval_agent.fetch_uniprot_data(accession)
+            self._last_uniprot_info = uniprot_info  # consumed by execute_analysis
+            sequence = (uniprot_info or {}).get("sequence", "").upper()
+            if sequence and all(residue in _AA_SET for residue in sequence):
+                return sequence
+            print(f"[Orchestrator] UniProt lookup failed or returned no sequence for {accession}.")
             return ""
 
         if mode == "sample":
@@ -406,6 +410,31 @@ class Orchestrator:
         fusion_mode = (final_predictions[0].get("fusion_mode", "N/A")
                        if final_predictions else "N/A")
 
+        # ── Real metadata for accession-mode queries ────────────────────────────
+        # RetrievalAgent was previously wired to nothing — accession queries got
+        # placeholder metadata even on a successful UniProt lookup. Use the real
+        # fetch result (cached by _resolve_sequence) when available, and only
+        # fetch PubMed literature now (cheap, and skipped entirely for
+        # motif/sequence/sample modes where there's no real protein identity).
+        uniprot_info = self._last_uniprot_info if mode == "accession" else {}
+        pubmed_articles = []
+        if uniprot_info:
+            pubmed_articles = self.retrieval_agent.search_pubmed_literature(
+                uniprot_info.get("protein_name", ""),
+                uniprot_info.get("gene_name", ""),
+                ptm_type="methylation",
+            )
+
+        metadata = {
+            "protein_name": uniprot_info.get("protein_name", query_id),
+            "gene_name":    uniprot_info.get("gene_name", mode),
+            "organism":     uniprot_info.get("organism", "N/A"),
+            "function":     uniprot_info.get(
+                "function", f"Dataset-centric methylation analysis. Query: {query}"
+            ),
+            "known_ptms": uniprot_info.get("known_ptms", []),
+        }
+
         analysis_summary = {
             "success":        True,
             "query":          query,
@@ -423,14 +452,9 @@ class Orchestrator:
             "all_predictions":      final_predictions,
             "positive_predictions": positive_sites,
             "explanations":         explanation_reports,
-            "metadata": {
-                "protein_name": query_id,
-                "gene_name":    mode,
-                "organism":     "N/A",
-                "function":     f"Dataset-centric methylation analysis. Query: {query}",
-            },
-            "uniprot_id":         accession or "N/A",
-            "pubmed_literature":  [],
+            "metadata":             metadata,
+            "uniprot_id":           accession or "N/A",
+            "pubmed_literature":    pubmed_articles,
         }
 
         print(f"\n[Orchestrator] ✅ Analysis complete. Query ID: {query_id}.")
