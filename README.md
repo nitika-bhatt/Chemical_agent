@@ -156,6 +156,12 @@ The root endpoint reports `analysis_ready: false` and `/api/analyze` returns
 HTTP 503 when the required assets are unavailable. This prevents deployment
 from silently running inference with untrained model weights.
 
+The API loads the model and local evidence dataset lazily on the first
+`/api/analyze` request to reduce Render startup memory. The 512 MB Render
+instance may still be too small for full inference with ESM-2 and the complete
+dataset; use a larger instance if the first analysis request is killed for
+memory.
+
 ---
 
 ## 4. Thesis Work Completed and Planned

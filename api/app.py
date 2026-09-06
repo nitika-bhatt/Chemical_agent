@@ -1,4 +1,5 @@
 import os
+import threading
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +37,7 @@ data_dir = os.path.join(base_dir, "data-11")
 
 orchestrator = None
 startup_error = None
+orchestrator_lock = threading.Lock()
 
 
 def _deployment_error():
@@ -56,22 +58,34 @@ def _deployment_error():
 
 @app.on_event("startup")
 def startup_event():
-    global orchestrator, startup_error
-    print("[API] Starting up. Initializing model orchestrator...")
+    global startup_error
+    print("[API] Starting up. Checking deployment assets...")
     startup_error = _deployment_error()
     if startup_error:
         print(f"[API] Configuration error: {startup_error}")
         return
-    try:
-        orchestrator = Orchestrator(
-            checkpoint_path=checkpoint_path,
-            data_dir=data_dir,
-        )
-    except Exception as exc:
-        startup_error = f"Orchestrator initialization failed: {exc}"
-        print(f"[API] {startup_error}")
-        return
-    print("[API] Orchestrator successfully initialized.")
+    print("[API] Assets found. Orchestrator will load on the first analysis request.")
+
+
+def _get_orchestrator():
+    global orchestrator, startup_error
+    if orchestrator is not None:
+        return orchestrator
+    if startup_error:
+        return None
+    with orchestrator_lock:
+        if orchestrator is None:
+            try:
+                print("[API] Loading orchestrator for analysis request...")
+                orchestrator = Orchestrator(
+                    checkpoint_path=checkpoint_path,
+                    data_dir=data_dir,
+                )
+                print("[API] Orchestrator successfully initialized.")
+            except Exception as exc:
+                startup_error = f"Orchestrator initialization failed: {exc}"
+                print(f"[API] {startup_error}")
+    return orchestrator
 
 # ==========================================
 # Request/Response Schemas
@@ -89,8 +103,9 @@ class QueryRequest(BaseModel):
 @app.get("/")
 def read_root():
     return {
-        "status": "Online" if orchestrator is not None else "Degraded",
-        "analysis_ready": orchestrator is not None,
+        "status": "Online" if startup_error is None else "Degraded",
+        "analysis_ready": startup_error is None,
+        "orchestrator_loaded": orchestrator is not None,
         "startup_error": startup_error,
         "system": "ProteinMind Agentic Framework (Dataset-Centric)",
         "version": "3.0",
@@ -111,7 +126,7 @@ def read_root():
 def analyze_protein(payload: QueryRequest):
     """Triggers the full dataset-centric multi-agent prediction and explanation pipeline."""
     global orchestrator
-    if orchestrator is None:
+    if _get_orchestrator() is None:
         raise HTTPException(
             status_code=503,
             detail=startup_error or "Orchestrator model is still loading.",
