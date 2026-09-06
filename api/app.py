@@ -32,14 +32,45 @@ app.add_middleware(
 # Locate default checkpoint
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 checkpoint_path = os.path.join(base_dir, "checkpoints", "pretrained_esm_v4.pt")
+data_dir = os.path.join(base_dir, "data-11")
 
 orchestrator = None
+startup_error = None
+
+
+def _deployment_error():
+    missing = []
+    if not os.path.isfile(checkpoint_path):
+        missing.append("checkpoints/pretrained_esm_v4.pt")
+    if not os.path.isdir(data_dir):
+        missing.append("data-11/")
+    if missing:
+        return (
+            "Required model/data assets are missing from the deployment: "
+            + ", ".join(missing)
+            + ". Upload them through Render persistent storage or configure "
+              "an artifact download during the build; do not run inference "
+              "with untrained weights."
+        )
+    return None
 
 @app.on_event("startup")
 def startup_event():
-    global orchestrator
+    global orchestrator, startup_error
     print("[API] Starting up. Initializing model orchestrator...")
-    orchestrator = Orchestrator(checkpoint_path=checkpoint_path)
+    startup_error = _deployment_error()
+    if startup_error:
+        print(f"[API] Configuration error: {startup_error}")
+        return
+    try:
+        orchestrator = Orchestrator(
+            checkpoint_path=checkpoint_path,
+            data_dir=data_dir,
+        )
+    except Exception as exc:
+        startup_error = f"Orchestrator initialization failed: {exc}"
+        print(f"[API] {startup_error}")
+        return
     print("[API] Orchestrator successfully initialized.")
 
 # ==========================================
@@ -58,7 +89,9 @@ class QueryRequest(BaseModel):
 @app.get("/")
 def read_root():
     return {
-        "status": "Online",
+        "status": "Online" if orchestrator is not None else "Degraded",
+        "analysis_ready": orchestrator is not None,
+        "startup_error": startup_error,
         "system": "ProteinMind Agentic Framework (Dataset-Centric)",
         "version": "3.0",
         "query_formats": [
@@ -79,7 +112,10 @@ def analyze_protein(payload: QueryRequest):
     """Triggers the full dataset-centric multi-agent prediction and explanation pipeline."""
     global orchestrator
     if orchestrator is None:
-        raise HTTPException(status_code=503, detail="Orchestrator model is still loading.")
+        raise HTTPException(
+            status_code=503,
+            detail=startup_error or "Orchestrator model is still loading.",
+        )
 
     query = payload.query
     try:

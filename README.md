@@ -119,6 +119,28 @@ Open `http://localhost:8502` and enter a UniProt accession such as `P04637` for 
 
 Each Streamlit analysis is saved in its own folder under `proteinmind_outputs/`.
 
+### Workflow E: Render Deployment
+
+The FastAPI service can start without the large model and dataset files, but
+analysis requires both of these assets at runtime:
+
+```text
+checkpoints/pretrained_esm_v4.pt
+checkpoints/consensus_agent_meta_learner.pkl
+data-11/
+```
+
+These files are excluded from Git because of their size. Configure Render to
+mount or download them during deployment, then set the service start command:
+
+```bash
+uvicorn api.app:app --host 0.0.0.0 --port $PORT
+```
+
+The root endpoint reports `analysis_ready: false` and `/api/analyze` returns
+HTTP 503 when the required assets are unavailable. This prevents deployment
+from silently running inference with untrained model weights.
+
 ---
 
 ## 4. Thesis Work Completed and Planned
