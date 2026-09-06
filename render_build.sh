@@ -8,6 +8,16 @@ python -m pip install -r requirements.txt
 : "${CONSENSUS_MODEL_URL:?Set CONSENSUS_MODEL_URL in Render environment variables}"
 : "${DATA_ARCHIVE_URL:?Set DATA_ARCHIVE_URL in Render environment variables}"
 
+for artifact_url in "$HYBRIDARGME_CHECKPOINT_URL" "$CONSENSUS_MODEL_URL" "$DATA_ARCHIVE_URL"; do
+  case "$artifact_url" in
+    https://*|http://*) ;;
+    *)
+      echo "Artifact URLs must begin with http:// or https://: $artifact_url" >&2
+      exit 1
+      ;;
+  esac
+done
+
 curl_auth=()
 if [ -n "${HF_TOKEN:-}" ]; then
   curl_auth=(-H "Authorization: Bearer $HF_TOKEN")
