@@ -137,6 +137,18 @@ mount or download them during deployment, then set the service start command:
 uvicorn api.app:app --host 0.0.0.0 --port $PORT
 ```
 
+The repository includes `render_build.sh` for downloading the excluded
+artifacts during a Render build. Set these Render environment variables to
+HTTPS download URLs, then use `bash render_build.sh` as the Build Command:
+
+```text
+HYBRIDARGME_CHECKPOINT_URL
+CONSENSUS_MODEL_URL
+DATA_ARCHIVE_URL
+```
+
+`DATA_ARCHIVE_URL` must point to a ZIP containing the `data-11/` directory.
+
 The root endpoint reports `analysis_ready: false` and `/api/analyze` returns
 HTTP 503 when the required assets are unavailable. This prevents deployment
 from silently running inference with untrained model weights.
