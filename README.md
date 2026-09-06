@@ -145,9 +145,12 @@ HTTPS download URLs, then use `bash render_build.sh` as the Build Command:
 HYBRIDARGME_CHECKPOINT_URL
 CONSENSUS_MODEL_URL
 DATA_ARCHIVE_URL
+HF_TOKEN                 # required for a private Hugging Face repository
 ```
 
 `DATA_ARCHIVE_URL` must point to a ZIP containing the `data-11/` directory.
+Keep the Hugging Face repository private and add `HF_TOKEN` only in Render's
+environment settings. Never commit the token or place it in a URL.
 
 The root endpoint reports `analysis_ready: false` and `/api/analyze` returns
 HTTP 503 when the required assets are unavailable. This prevents deployment
