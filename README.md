@@ -162,6 +162,12 @@ instance may still be too small for full inference with ESM-2 and the complete
 dataset; use a larger instance if the first analysis request is killed for
 memory.
 
+For the Render frontend/backend pair, leave `GENERATE_ARTIFACTS` unset or set
+it to `false`. Lightweight mode returns predictions without synchronously
+building ESMFold/3D/PDF artifacts, avoiding gateway timeouts. Set
+`GENERATE_ARTIFACTS=true` only on a sufficiently large backend instance when
+report and viewer generation is required.
+
 ---
 
 ## 4. Thesis Work Completed and Planned

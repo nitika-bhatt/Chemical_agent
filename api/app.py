@@ -34,6 +34,7 @@ app.add_middleware(
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 checkpoint_path = os.path.join(base_dir, "checkpoints", "pretrained_esm_v4.pt")
 data_dir = os.path.join(base_dir, "data-11")
+generate_artifacts = os.environ.get("GENERATE_ARTIFACTS", "false").lower() == "true"
 
 orchestrator = None
 startup_error = None
@@ -141,6 +142,11 @@ def analyze_protein(payload: QueryRequest):
                                 detail=analysis_res.get("error", "Unknown pipeline error"))
 
         query_id = analysis_res["query_id"]
+
+        if not generate_artifacts:
+            analysis_res["visuals"] = {}
+            analysis_res["deployment_mode"] = "lightweight_inference"
+            return analysis_res
 
         # 2. Generate visuals
         plot_dir   = os.path.join(base_dir, "output_plots")
